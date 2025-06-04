@@ -2,6 +2,7 @@
 # data/augmented/bisindo/
 # data/augmented/sibi/
 # data/raw/bisindo/
+
 # Python
 __pycache__/
 *.py[cod]
@@ -19,3 +20,6 @@ dist/
 # Mac/Linux/VSCode
 .DS_Store
 .vscode/
+
+# Virtual Environment
+venv/
