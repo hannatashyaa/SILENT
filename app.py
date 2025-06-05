@@ -8,8 +8,6 @@ import numpy as np
 import base64
 import logging
 import json
-from flask import Flask, request, jsonify
-from flask_cors import CORS
 import mediapipe as mp
 import pickle
 import joblib
@@ -18,7 +16,8 @@ from datetime import datetime
 import io
 from PIL import Image
 import pandas as pd
-
+from flask import Flask, request, jsonify
+from flask_cors import CORS
 # FIX: Console encoding untuk Windows
 if sys.platform.startswith('win'):
     import codecs
