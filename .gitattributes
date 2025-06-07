@@ -1,0 +1,5 @@
+*.pkl filter=lfs diff=lfs merge=lfs -text
+*.h5 filter=lfs diff=lfs merge=lfs -text
+data/models/* filter=lfs diff=lfs merge=lfs -text
+data/augmented/**/*.jpg filter=lfs diff=lfs merge=lfs -text
+data/augmented/**/*.png filter=lfs diff=lfs merge=lfs -text
