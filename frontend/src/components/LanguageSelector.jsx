@@ -29,7 +29,7 @@ const LanguageSelector = ({ selectedLanguage, onLanguageChange }) => {
         </p>
       </div>
 
-      <div className="grid md:grid-cols-2 gap-6">
+      <div className="grid grid-cols-2 gap-4 sm:gap-6">
         {languages.map((language) => (
           <div
             key={language.code}

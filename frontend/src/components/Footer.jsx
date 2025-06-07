@@ -5,97 +5,81 @@ import logo from '../assets/logo.png'
 
 const Footer = () => {
   return (
-    <footer className="bg-blue-gradient text-white">
+    <footer className="bg-[#009DFF] text-white">
       <div className="container mx-auto px-4 py-12">
-        <div className="grid md:grid-cols-4 gap-8">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-8">
           {/* Brand Section */}
-          <div className="md:col-span-1">
-            <div className="flex items-center space-x-2 mb-4">
-              <div className="w-10 h-10 rounded-lg flex items-center justify-center">
+          <div className="text-center md:text-left">
+            <div className="flex flex-col items-center md:items-start mb-4">
+              <div className="w-12 h-12 rounded-lg flex items-center justify-center mb-2">
                 <img src={logo} alt="SILENT Logo" className="w-12 h-12 object-contain rounded-lg p-1" />
               </div>
               <span className="font-bold text-xl">SILENT</span>
             </div>
-            <p className="text-blue-100 text-sm mb-4">
-              Sign language interpretation<br />
-              and expression translator.
+            <p className="text-blue-100 text-sm">
+              interpretasi dan penerjemah ekspresi bahasa isyarat
             </p>
           </div>
 
           {/* Quick Links */}
-          <div>
+          <div className="text-center md:text-left">
             <h3 className="font-semibold text-lg mb-4">Quick Links</h3>
             <ul className="space-y-2">
               <li>
                 <Link to="/" className="text-blue-100 hover:text-white transition-colors">
-                  Home
+                  Beranda
                 </Link>
               </li>
               <li>
                 <Link to="/translate" className="text-blue-100 hover:text-white transition-colors">
-                  Translate
+                  Terjemahan
                 </Link>
               </li>
               <li>
                 <Link to="/history" className="text-blue-100 hover:text-white transition-colors">
-                  History
+                  Riwayat
                 </Link>
               </li>
             </ul>
           </div>
 
           {/* Our Services */}
-          <div>
-            <h3 className="font-semibold text-lg mb-4">Our Services</h3>
+          <div className="text-center md:text-left">
+            <h3 className="font-semibold text-lg mb-4">Layanan Kami</h3>
             <ul className="space-y-2 text-blue-100 text-sm">
-              <li>Real-time Sign Translation</li>
-              <li>Image-Based Translation</li>
-              <li>Camera-Based Translation</li>
-              <li>API Integration for Accessibility</li>
+              <li>Terjemahan Isyarat Real-time</li>
+              <li>Terjemahan Berbasis Gambar</li>
+              <li>Terjemahan Berbasis Kamera</li>
+              <li>Integrasi API untuk Aksesibilitas</li>
             </ul>
           </div>
 
           {/* Community & Support */}
-          <div>
-            <h3 className="font-semibold text-lg mb-4">Community & Support</h3>
+          <div className="text-center md:text-left">
+            <h3 className="font-semibold text-lg mb-4">Komunitas & Dukungan</h3>
             <ul className="space-y-2 text-blue-100 text-sm">
-              <li>Community Forum</li>
-              <li>Contribute Data</li>
-              <li>Research Collaboration</li>
-              <li>Report an Issue</li>
+              <li>Forum Komunitas</li>
+              <li>Kontribusi Data</li>
+              <li>Kolaborasi Riset</li>
+              <li>Laporkan Masalah</li>
             </ul>
           </div>
         </div>
 
         {/* Social Media & Copyright */}
-        <div className="border-t border-blue-600 mt-8 pt-8">
-          <div className="flex flex-col md:flex-row items-center justify-between">
+        <div className="border-t border-blue-600 mt-12 pt-8">
+          <div className="flex flex-col items-center md:flex-row md:justify-between gap-4">
             {/* Social Media Icons */}
-            <div className="flex items-center space-x-4 mb-4 md:mb-0">
-              <a
-                href="#"
-                className="w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center hover:bg-blue-700 transition-colors"
-              >
+            <div className="flex space-x-4">
+              <a href="#" className="w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center hover:bg-blue-700 transition-colors">
                 <Facebook size={20} />
               </a>
-              <a
-                href="#"
-                className="w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center hover:bg-blue-700 transition-colors"
-              >
+              <a href="#" className="w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center hover:bg-blue-700 transition-colors">
                 <Twitter size={20} />
               </a>
-              <a
-                href="#"
-                className="w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center hover:bg-blue-700 transition-colors"
-              >
+              <a href="#" className="w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center hover:bg-blue-700 transition-colors">
                 <Instagram size={20} />
               </a>
-              {/* <a
-                href="#"
-                className="w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center hover:bg-blue-700 transition-colors"
-              >
-                <span className="text-lg">🎵</span>
-              </a> */}
             </div>
 
             {/* Copyright */}
@@ -106,6 +90,7 @@ const Footer = () => {
         </div>
       </div>
     </footer>
+
   )
 }
 

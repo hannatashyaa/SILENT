@@ -1,5 +1,5 @@
 import React, { useRef, useState, useEffect, useCallback } from 'react'
-import { Camera, CameraOff, Loader, Square, Timer, Play, Pause, FlipHorizontal2, AlertCircle } from 'lucide-react'
+import { Camera, CameraOff, Loader, Square, Timer, Play, Pause, FlipHorizontal2, Type, Trash2, Space, Copy, RotateCcw } from 'lucide-react'
 import { apiService } from '../services/apiService'
 
 const CameraCapture = ({ language, onPrediction }) => {
@@ -24,6 +24,19 @@ const CameraCapture = ({ language, onPrediction }) => {
   const [countdown, setCountdown] = useState(0)
   const [captureCount, setCaptureCount] = useState(0)
 
+  // IMPROVED: Auto Letter Display System (Always Active)
+  const [letterSequence, setLetterSequence] = useState([])
+  // GLOBAL: Track last prediction to prevent ANY double calls
+  const lastPredictionRef = useRef(0)
+  const isProcessingRef = useRef(false)
+  // GLOBAL: Track to prevent double history entries
+  const lastHistoryRef = useRef(0)
+  const sentToHistoryRef = useRef(new Set())
+  // CLEAN: Single source of truth for prediction calls
+  const isTimerActiveRef = useRef(false)
+  const predictionSourceRef = useRef('manual')
+  const [sequenceHistory, setSequenceHistory] = useState([])
+
   // Check backend connectivity on component mount
   useEffect(() => {
     checkBackendConnectivity()
@@ -37,26 +50,24 @@ const CameraCapture = ({ language, onPrediction }) => {
       if (available) {
         console.log('Backend is available')
         setBackendStatus('connected')
-        // Get additional info
         try {
           const status = await apiService.getApiStatus()
           console.log('Backend status:', status)
         } catch (err) {
-          console.warn(' Could not get full backend status:', err)
+          console.warn('Could not get full backend status:', err)
         }
       } else {
-        console.log(' Backend is not available')
+        console.log('Backend is not available')
         setBackendStatus('disconnected')
         setError('Backend server tidak tersedia. Pastikan server Python berjalan di http://localhost:5000')
       }
     } catch (err) {
-      console.error(' Backend connectivity check failed:', err)
+      console.error('Backend connectivity check failed:', err)
       setBackendStatus('error')
       setError(`Backend error: ${err.message}`)
     }
   }
 
-  // ROBUST CAMERA START
   const startCamera = async () => {
     setError(null)
     setIsLoading(true)
@@ -71,8 +82,9 @@ const CameraCapture = ({ language, onPrediction }) => {
       const constraints = { 
         video: {
           facingMode: 'user',
-          width: { ideal: 640 },
-          height: { ideal: 480 }
+          width: { ideal: 1280, min: 640 },
+          height: { ideal: 720, min: 480 },
+          frameRate: { ideal: 30 }
         }
       }
       
@@ -192,12 +204,24 @@ const CameraCapture = ({ language, onPrediction }) => {
   }
 
   const clearTimers = () => {
-    if (timerRef.current) clearTimeout(timerRef.current)
-    if (autoIntervalRef.current) clearInterval(autoIntervalRef.current)
+    if (timerRef.current) {
+      clearTimeout(timerRef.current)
+      clearInterval(timerRef.current)
+      timerRef.current = null
+    }
+    if (autoIntervalRef.current) {
+      clearInterval(autoIntervalRef.current)
+      autoIntervalRef.current = null
+    }
+    
+    // CLEAN: Reset all flags
+    isTimerActiveRef.current = false
+    predictionSourceRef.current = 'manual'
     setCountdown(0)
+    
+    console.log('🧹 CLEAN: All timers and flags reset')
   }
 
-  // Capture image from video stream
   const captureImage = useCallback(async () => {
     if (!videoRef.current || !canvasRef.current || !isStreaming) return null
 
@@ -205,27 +229,129 @@ const CameraCapture = ({ language, onPrediction }) => {
     const canvas = canvasRef.current
     const ctx = canvas.getContext('2d')
 
-    canvas.width = video.videoWidth
-    canvas.height = video.videoHeight
+    canvas.width = video.videoWidth || 1280
+    canvas.height = video.videoHeight || 720
+
+    ctx.clearRect(0, 0, canvas.width, canvas.height)
+    ctx.imageSmoothingEnabled = true
+    ctx.imageSmoothingQuality = 'high'
 
     if (isMirrored) {
+      ctx.save()
       ctx.scale(-1, 1)
       ctx.drawImage(video, -canvas.width, 0, canvas.width, canvas.height)
-      ctx.scale(-1, 1)
+      ctx.restore()
     } else {
       ctx.drawImage(video, 0, 0, canvas.width, canvas.height)
     }
 
+    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height)
+    const data = imageData.data
+    
+    for (let i = 0; i < data.length; i += 4) {
+      data[i] = Math.min(255, Math.max(0, (data[i] - 128) * 1.1 + 128))
+      data[i + 1] = Math.min(255, Math.max(0, (data[i + 1] - 128) * 1.1 + 128))
+      data[i + 2] = Math.min(255, Math.max(0, (data[i + 2] - 128) * 1.1 + 128))
+    }
+    
+    ctx.putImageData(imageData, 0, 0)
+
     return new Promise((resolve) => {
-      canvas.toBlob(resolve, 'image/jpeg', 0.8)
+      canvas.toBlob(resolve, 'image/jpeg', 0.92)
     })
   }, [isStreaming, isMirrored])
 
-  // FIXED: Predict from camera capture
+  // UNIVERSAL: Anti-double protection for ALL modes (Auto, Timer, Manual)
+  const addLetterToSequence = (prediction, confidence) => {
+    const currentTime = Date.now()
+    
+    // Universal cooldown for ALL modes
+    if (currentTime - lastPredictionRef.current < 2500) {
+      console.log(`⏳ UNIVERSAL Cooldown active, skipping: ${prediction} (${currentTime - lastPredictionRef.current}ms ago)`)
+      return false
+    }
+    
+    // Check for exact same letter in last 5 seconds
+    const recentSame = letterSequence.find(item => 
+      item.letter === prediction && 
+      (currentTime - new Date(item.timestamp).getTime()) < 5000
+    )
+    
+    if (recentSame) {
+      console.log(`🚫 UNIVERSAL DUPLICATE BLOCKED: ${prediction} already exists in last 5 seconds`)
+      return false
+    }
+    
+    // Very low confidence threshold
+    if (confidence >= 0.2) {
+      const newLetter = {
+        id: currentTime,
+        letter: prediction,
+        confidence: confidence,
+        timestamp: new Date(),
+        source: isAutoCapture ? 'auto' : (countdown > 0 ? 'timer' : 'manual')
+      }
+      
+      setSequenceHistory(prev => [...prev.slice(-9), [...letterSequence]])
+      setLetterSequence(prev => {
+        const newSequence = [...prev, newLetter]
+        console.log(`✅ UNIVERSAL ADD: ${prediction} (${(confidence * 100).toFixed(1)}%) from ${newLetter.source} mode - Total: ${newSequence.length}`)
+        return newSequence
+      })
+      
+      lastPredictionRef.current = currentTime
+      console.log(`🎯 Letter added universally: ${prediction} from ${newLetter.source} mode`)
+      return true
+    } else {
+      console.log(`❌ Confidence too low: ${prediction} (${(confidence * 100).toFixed(1)}%)`)
+      return false
+    }
+  }
+
+  // Sequence controls
+  const clearSequence = () => {
+    setSequenceHistory(prev => [...prev.slice(-9), [...letterSequence]])
+    setLetterSequence([])
+    console.log('Letter sequence cleared')
+  }
+
+  const undoLastLetter = () => {
+    if (sequenceHistory.length > 0) {
+      const previousSequence = sequenceHistory[sequenceHistory.length - 1]
+      setLetterSequence(previousSequence)
+      setSequenceHistory(prev => prev.slice(0, -1))
+      console.log('Undid last letter')
+    }
+  }
+
+  // FIXED: Add space to sequence (don't affect prediction flow)
+  const addSpaceToSequence = () => {
+    const spaceItem = {
+      id: Date.now(),
+      letter: ' ',
+      confidence: 1.0,
+      timestamp: new Date(),
+      isSpace: true,
+      source: 'manual'
+    }
+    
+    setSequenceHistory(prev => [...prev.slice(-9), [...letterSequence]])
+    setLetterSequence(prev => [...prev, spaceItem])
+    
+    // DON'T update lastPredictionTime - this allows next prediction to work normally
+    console.log('✅ Space added to sequence - prediction flow continues normally')
+  }
+
+  const copySequenceText = () => {
+    const text = letterSequence.map(item => item.letter).join('')
+    navigator.clipboard.writeText(text)
+    alert('Text copied to clipboard!')
+  }
+
+  // IMPROVED: Main prediction function with auto-sequence
   const predictFromCamera = useCallback(async () => {
     if (!isStreaming || !videoRef.current) return
 
-    // Check backend status first
     if (backendStatus !== 'connected') {
       setError('Backend tidak tersedia. Cek koneksi ke server Python.')
       return
@@ -252,21 +378,29 @@ const CameraCapture = ({ language, onPrediction }) => {
       if (lastCapture) URL.revokeObjectURL(lastCapture)
       setLastCapture(imageUrl)
 
-      // FIXED: Use the corrected API service
       console.log('Sending to backend API...')
       const result = await apiService.predictImage(imageBlob, language)
       
       console.log('Prediction result:', result)
       
-      // Send result to parent component
+      // SUPER STRICT: Only add once, with strong duplicate prevention
+      if (result.success && result.prediction && result.prediction !== "No hand detected") {
+        console.log(`🎯 ATTEMPTING to add "${result.prediction}" (confidence: ${result.confidence})`)
+        const wasAdded = addLetterToSequence(result.prediction, result.confidence)
+        console.log(`📊 Add result: ${wasAdded ? 'SUCCESS' : 'BLOCKED'}`)
+      } else {
+        console.log(`❌ SKIPPED: success=${result.success}, prediction="${result.prediction}"`)
+      }
+      
+      // Send to parent for history (this might be causing the double in history too)
+      console.log(`📤 Sending to history: ${result.prediction}`)
       onPrediction(result, imageUrl)
 
     } catch (err) {
-      console.error(' Prediction error:', err)
+      console.error('Prediction error:', err)
       
       let errorMessage = err.message || 'Failed to predict image'
       
-      // Handle specific error types
       if (err.message.includes('Network error')) {
         errorMessage = 'Tidak bisa menghubungi server. Pastikan backend Python berjalan di http://localhost:5000'
         setBackendStatus('disconnected')
@@ -283,19 +417,38 @@ const CameraCapture = ({ language, onPrediction }) => {
     } finally {
       setIsCapturing(false)
     }
-  }, [isStreaming, captureImage, language, onPrediction, lastCapture, backendStatus])
+  }, [isStreaming, captureImage, language, onPrediction, lastCapture, backendStatus, isAutoCapture])
 
-  // Timer capture
+  // CLEAN: Timer with explicit source tracking
   const startTimerCapture = () => {
     if (!isStreaming) return
+    
+    // CLEAN: Prevent multiple timer instances
+    if (isTimerActiveRef.current) {
+      console.log('⏰ TIMER: Already active, ignoring')
+      return
+    }
 
+    clearTimers()
+    isTimerActiveRef.current = true
+    predictionSourceRef.current = 'timer'
     setCountdown(timerSeconds)
+    
+    console.log(`⏰ TIMER: Starting ${timerSeconds}s countdown`)
     
     const timer = setInterval(() => {
       setCountdown(prev => {
         if (prev <= 1) {
           clearInterval(timer)
-          predictFromCamera()
+          console.log(`⏰ TIMER: Countdown finished - calling prediction`)
+          
+          // CLEAN: Direct call with explicit source
+          setTimeout(() => {
+            if (isTimerActiveRef.current) { // Double check timer is still active
+              predictFromCamera('timer')
+            }
+          }, 200)
+          
           return 0
         }
         return prev - 1
@@ -305,7 +458,7 @@ const CameraCapture = ({ language, onPrediction }) => {
     timerRef.current = timer
   }
 
-  // Auto capture mode
+  // CLEAN: Auto capture with explicit source
   const toggleAutoCapture = () => {
     if (isAutoCapture) {
       if (autoIntervalRef.current) {
@@ -313,11 +466,16 @@ const CameraCapture = ({ language, onPrediction }) => {
         autoIntervalRef.current = null
       }
       setIsAutoCapture(false)
+      predictionSourceRef.current = 'manual'
+      console.log('🤖 AUTO: Stopped')
     } else {
       setIsAutoCapture(true)
+      predictionSourceRef.current = 'auto'
+      console.log('🤖 AUTO: Started')
+      
       autoIntervalRef.current = setInterval(() => {
         if (!isCapturing && isStreaming && backendStatus === 'connected') {
-          predictFromCamera()
+          predictFromCamera('auto')
         }
       }, 3000)
     }
@@ -325,6 +483,7 @@ const CameraCapture = ({ language, onPrediction }) => {
 
   const toggleMirror = () => {
     setIsMirrored(!isMirrored)
+    console.log('Mirror mode:', !isMirrored ? 'ON' : 'OFF')
   }
 
   // Auto-start camera when component mounts
@@ -365,7 +524,7 @@ const CameraCapture = ({ language, onPrediction }) => {
               'bg-yellow-500'
             }`}></div>
             <span className="text-sm font-medium">
-             {
+              {
                 backendStatus === 'connected' ? 'Connected' :
                 backendStatus === 'disconnected' ? 'Disconnected' :
                 'Checking...'
@@ -388,7 +547,7 @@ const CameraCapture = ({ language, onPrediction }) => {
       <div className="flex items-center justify-between">
         <h3 className="text-lg font-semibold flex items-center gap-2">
           <Camera className="w-5 h-5 text-blue-600" />
-          Camera Capture
+          Real-time Camera Translation
           {isStreaming && (
             <span className="bg-green-100 text-green-800 text-xs px-2 py-1 rounded-full">
               Live
@@ -431,34 +590,9 @@ const CameraCapture = ({ language, onPrediction }) => {
         </div>
       </div>
 
-      {/* Backend Connection Error */}
-      {/* {backendStatus === 'disconnected' && (
-        <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-          <div className="flex items-center gap-2 mb-2">
-            <AlertCircle className="w-5 h-5 text-red-500" />
-            <h4 className="font-medium text-red-800">Backend Tidak Tersedia</h4>
-          </div>
-          <p className="text-red-700 text-sm mb-3">
-            Server Python backend tidak dapat dihubungi. Pastikan:
-          </p>
-          <ul className="text-red-600 text-sm space-y-1 mb-3">
-            <li>• Server Python berjalan di <code>http://localhost:5000</code></li>
-            <li>• Jalankan <code>python app.py</code> di folder backend</li>
-            <li>• Model telah ditraining dan tersedia</li>
-            <li>• Tidak ada firewall yang memblokir koneksi</li>
-          </ul>
-          <button
-            onClick={checkBackendConnectivity}
-            className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded text-sm"
-          >
-            Test Connection Lagi
-          </button>
-        </div>
-      )} */}
-
       {/* Camera Preview */}
       <div className="relative">
-        <div className="camera-preview bg-gray-100 rounded-lg overflow-hidden" style={{ aspectRatio: '5/3' }}>
+        <div className="camera-preview bg-gray-100 rounded-lg overflow-hidden" style={{ aspectRatio: '16/9' }}>
           <video
             ref={videoRef}
             autoPlay
@@ -511,7 +645,7 @@ const CameraCapture = ({ language, onPrediction }) => {
         {isAutoCapture && (
           <div className="absolute top-4 left-4 bg-green-500 text-white px-3 py-1 rounded-full text-sm flex items-center gap-1">
             <div className="w-2 h-2 bg-white rounded-full animate-pulse"></div>
-            Auto Mode
+            Auto Mode • Letters Auto-Added
           </div>
         )}
 
@@ -525,18 +659,142 @@ const CameraCapture = ({ language, onPrediction }) => {
         )}
 
         {isMirrored && isStreaming && (
-          <div className="absolute top-4 right-4 bg-blue-500 text-white px-2 py-1 rounded text-xs">
-            Mirror
+          <div className="absolute bottom-4 right-4 bg-blue-500 text-white px-2 py-1 rounded text-xs">
+            Mirror Mode
           </div>
         )}
       </div>
 
       <canvas ref={canvasRef} style={{ display: 'none' }} />
 
-      {/* Camera Features - Only show if camera is ready and backend is connected */}
+      {/* FIXED: Letter Sequence Display - ALWAYS show when has letters */}
+      {letterSequence.length > 0 && (
+        <div className="bg-gradient-to-r from-green-50 to-blue-50 border-2 border-green-200 rounded-xl p-6">
+          <div className="flex items-center justify-between mb-4">
+            <h4 className="font-bold text-green-900 flex items-center gap-2">
+              🔤 Live Letter Sequence
+              <span className="bg-green-100 text-green-600 text-xs px-2 py-1 rounded-full">
+                {letterSequence.filter(item => !item.isSpace).length} letters
+              </span>
+            </h4>
+            <div className="flex items-center gap-2">
+              {sequenceHistory.length > 0 && (
+                <button
+                  onClick={undoLastLetter}
+                  className="text-orange-500 hover:text-orange-700 p-1"
+                  title="Undo last letter"
+                >
+                  <RotateCcw className="w-4 h-4" />
+                </button>
+              )}
+              <button
+                onClick={clearSequence}
+                className="text-red-500 hover:text-red-700 p-1"
+                title="Clear sequence"
+              >
+                <Trash2 className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+          
+          {/* Letter Display - Clean A L V I N format */}
+          <div className="text-center mb-4">
+            <div className="flex justify-center items-center gap-3 flex-wrap mb-3">
+              {letterSequence.map((item, index) => (
+                <div
+                  key={item.id}
+                  className={`
+                    relative
+                    ${item.isSpace ? 'w-6 h-8 bg-gray-300' : 'w-14 h-14 bg-white border-2 border-green-300 shadow-lg'}
+                    rounded-lg flex items-center justify-center
+                    transition-all duration-300 hover:scale-105
+                    ${item.source === 'auto' ? 'ring-2 ring-blue-400' : ''}
+                    ${item.source === 'timer' ? 'ring-2 ring-purple-400' : ''}
+                  `}
+                  title={item.isSpace ? 'Space' : `${item.letter} (${(item.confidence * 100).toFixed(0)}%) - ${item.source}`}
+                >
+                  {!item.isSpace && (
+                    <>
+                      <span className="text-3xl font-bold text-green-600">
+                        {item.letter}
+                      </span>
+                      <span className="absolute -bottom-1 text-xs text-gray-500 bg-white px-1 rounded border">
+                        {(item.confidence * 100).toFixed(0)}%
+                      </span>
+                      {item.source === 'auto' && (
+                        <span className="absolute -top-1 -right-1 w-3 h-3 bg-blue-500 rounded-full" title="Auto capture"></span>
+                      )}
+                      {item.source === 'timer' && (
+                        <span className="absolute -top-1 -right-1 w-3 h-3 bg-purple-500 rounded-full" title="Timer capture"></span>
+                      )}
+                      {item.source === 'manual' && (
+                        <span className="absolute -top-1 -right-1 w-3 h-3 bg-green-500 rounded-full" title="Manual capture"></span>
+                      )}
+                    </>
+                  )}
+                </div>
+              ))}
+            </div>
+            
+            {/* Statistics */}
+            <p className="text-green-700 text-sm mb-3">
+              {letterSequence.filter(item => !item.isSpace).length} letters • {letterSequence.filter(item => item.isSpace).length} spaces
+              • Confidence: {letterSequence.length > 0 ? 
+                (letterSequence.filter(item => !item.isSpace).reduce((acc, item) => acc + item.confidence, 0) / 
+                letterSequence.filter(item => !item.isSpace).length * 100).toFixed(0) : 0}% avg
+            </p>
+            
+            {/* Action Buttons */}
+            <div className="flex justify-center gap-2 flex-wrap mb-3">
+              <button
+                onClick={addSpaceToSequence}
+                className="bg-green-500 hover:bg-green-600 text-white px-3 py-2 rounded-lg text-sm flex items-center gap-1"
+              >
+                <Space className="w-3 h-3" />
+                Add Space
+              </button>
+              <button
+                onClick={copySequenceText}
+                className="bg-blue-500 hover:bg-blue-600 text-white px-3 py-2 rounded-lg text-sm flex items-center gap-1"
+              >
+                <Copy className="w-3 h-3" />
+                Copy Text
+              </button>
+            </div>
+          </div>
+          
+          {/* Final Text Preview */}
+          <div className="bg-white rounded-lg p-4 border border-green-200">
+            <p className="text-gray-600 text-sm mb-2">Hasil Terjemahan:</p>
+            <div className="text-center">
+              <div className="text-2xl font-bold text-green-600 mb-2 tracking-wider">
+                {letterSequence.map(item => item.letter).join('')}
+              </div>
+              <p className="text-green-700 text-sm">
+                {letterSequence.filter(item => !item.isSpace).length} huruf berhasil diterjemahkan
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Placeholder message when no letters yet */}
+      {letterSequence.length === 0 && isStreaming && backendStatus === 'connected' && (
+        <div className="bg-blue-50 border-2 border-dashed border-blue-200 rounded-xl p-6 text-center">
+          <div className="text-blue-400 mb-2">
+            <Type className="w-8 h-8 mx-auto" />
+          </div>
+          <h4 className="font-medium text-blue-900 mb-2">Siap untuk Terjemahan</h4>
+          <p className="text-blue-700 text-sm">
+            Huruf akan muncul secara otomatis di sini setelah capture pertama
+          </p>
+        </div>
+      )}
+
+      {/* Camera Features */}
       {isStreaming && backendStatus === 'connected' && (
         <div className="space-y-4">
-          {/* Mirror & Settings */}
+          {/* Camera Settings */}
           <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
             <span className="text-sm font-medium text-gray-700">Camera Settings</span>
             <div className="flex items-center gap-2">
@@ -550,7 +808,7 @@ const CameraCapture = ({ language, onPrediction }) => {
                 title="Toggle Mirror Mode"
               >
                 <FlipHorizontal2 className="w-4 h-4" />
-                Mirror
+                {isMirrored ? 'Mirror ON' : 'Mirror OFF'}
               </button>
             </div>
           </div>
@@ -558,7 +816,10 @@ const CameraCapture = ({ language, onPrediction }) => {
           {/* Capture Controls */}
           <div className="grid grid-cols-2 gap-3">
             <button
-              onClick={predictFromCamera}
+              onClick={() => {
+                predictionSourceRef.current = 'manual'
+                predictFromCamera('manual')
+              }}
               disabled={!isStreaming || isCapturing || backendStatus !== 'connected'}
               className="btn-primary flex items-center justify-center gap-2 disabled:opacity-50"
             >
@@ -628,15 +889,34 @@ const CameraCapture = ({ language, onPrediction }) => {
         </div>
       )}
 
+      {/* Error Display */}
+      {error && (
+        <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+          <div className="flex items-center gap-2 text-red-700">
+            <span className="text-red-500">⚠️</span>
+            <p className="text-sm">{error}</p>
+          </div>
+        </div>
+      )}
+
+      {/* Instructions */}
       <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
         <h4 className="font-medium text-blue-900 mb-2">📋 Petunjuk Penggunaan:</h4>
         <ul className="text-blue-800 text-sm space-y-1">
-          {/* <li>• <strong>Backend Required:</strong> Pastikan server Python berjalan di localhost:5000</li> */}
-          <li>• <strong>Capture Now:</strong> Ambil foto langsung untuk prediksi</li>
-          <li>• <strong>Timer:</strong> Ambil foto dengan hitungan mundur</li>
-          <li>• <strong>Auto Capture:</strong> Ambil foto otomatis setiap 3 detik</li>
-          <li>• <strong>Mirror:</strong> Balik tampilan kamera (seperti cermin)</li>
-          <li>• Pastikan tangan berada dalam frame dengan pencahayaan cukup</li>
+          <li>• <strong>Auto Letter Display:</strong> Huruf akan muncul otomatis di bawah kamera saat prediksi berhasil (min 20%)</li>
+          <li>• <strong>Auto Capture:</strong> Ambil foto otomatis setiap 3 detik - huruf langsung muncul</li>
+          <li>• <strong>Timer Capture:</strong> Countdown capture - huruf juga langsung muncul</li>
+          <li>• <strong>Manual Capture:</strong> Klik "Capture Now" - huruf akan ditambahkan otomatis</li>
+          <li>• <strong>Mirror Mode ON:</strong> Untuk tangan kiri (natural movement)</li>
+          <li>• <strong>Mirror Mode OFF:</strong> Untuk tangan kanan atau 2 tangan (BISINDO)</li>
+          <li>• Confidence minimum 20% untuk ditambahkan ke sequence (sangat permisif)</li>
+          <li>• <strong>History Protection:</strong> Mencegah double entry di sidebar history</li>
+          <li>• Cooldown history 1.5 detik + unique key system untuk semua mode</li>
+          <li>• Cooldown global 2.5 detik + duplicate check 5 detik untuk semua mode</li>
+          <li>• Mengabaikan "No hand detected" secara otomatis</li>
+          <li>• Add Space tidak mengganggu prediksi selanjutnya</li>
+          <li>• Gunakan "Add Space", "Undo", dan "Copy" untuk kontrol sequence</li>
+          <li>• Huruf dengan dot hijau = otomatis dari Auto/Timer mode</li>
         </ul>
       </div>
     </div>
