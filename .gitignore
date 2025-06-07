@@ -16,6 +16,7 @@ dist/
 .env
 *.log
 venv/
+myenv/
 
 # Mac/Linux/VSCode
 .DS_Store
