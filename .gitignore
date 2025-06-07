@@ -13,9 +13,11 @@ node_modules/
 dist/
 
 # Env dan logs
-.env
+.env    
 *.log
 venv/
+myenv/
+myenv1/
 
 # Mac/Linux/VSCode
 .DS_Store
