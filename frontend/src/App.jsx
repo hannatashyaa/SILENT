@@ -361,19 +361,24 @@ function TranslatePage() {
                   </p>
                 </div>
               )}
-   
+
+              {/* PERBAIKAN UTAMA: Kondisi yang benar untuk render komponen */}
+              {currentMode === 'camera' && (
                 <div className="fade-in">
                   <CameraCapture
                     language={selectedLanguage}
                     onPrediction={handleCameraPrediction}
                   />
                 </div>
+              )}
 
               {currentMode === 'upload' && (
-                <ImageUpload
-                  language={selectedLanguage}
-                  onPrediction={handleUploadPrediction}
-                />
+                <div className="fade-in">
+                  <ImageUpload
+                    language={selectedLanguage}
+                    onPrediction={handleUploadPrediction}
+                  />
+                </div>
               )}
 
               {predictionResult && (
@@ -456,7 +461,7 @@ function TranslatePage() {
   );
 }
 
-// About Page Component (Tidak ada perubahan)
+// About Page Component
 function AboutPage() {
   return (
     <div className="min-h-screen bg-gray-50">
@@ -527,7 +532,6 @@ function AboutPage() {
     </div>
   );
 }
-
 
 // Updated History Page Component
 function HistoryPage() {
