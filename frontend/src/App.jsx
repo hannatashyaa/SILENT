@@ -8,7 +8,7 @@ import ImageUpload from './components/ImageUpload';
 import PredictionResult from './components/PredictionResult';
 import ModelInfo from './components/ModelInfo';
 import landingPage from './assets/landingPage.png';
-import cameraIcon from './assets/camera-icon.png' // atau sesuai path kamu
+import cameraIcon from './assets/camera-icon.png'
 import imageIcon from './assets/image-icon.png'
 import klik from './assets/klik.png'
 import sibiImage from './assets/sibiringkas.jpg'
@@ -21,18 +21,36 @@ const HistoryContext = createContext();
 const HistoryProvider = ({ children }) => {
   const [globalHistory, setGlobalHistory] = useState([]);
 
-  const addToHistory = (result, capturedImageUrl = null, language = null) => {
-    if (result && result.success) {
+  const addToHistory = (result, capturedImageUrl = null, language = null, source = 'unknown') => {
+    if (result && result.success && result.prediction) {
       const newEntry = {
-        id: Date.now(),
+        id: Date.now() + Math.random(), 
         prediction: result.prediction,
         confidence: result.confidence,
         timestamp: new Date(),
         imageUrl: capturedImageUrl,
         language: result.dataset || language?.toUpperCase() || 'UNKNOWN',
-        source: 'camera' // or 'upload'
+        source: source 
       };
-      setGlobalHistory(prev => [newEntry, ...prev.slice(0, 49)]); // Keep last 50 entries
+
+      setGlobalHistory(prev => {
+        const recentEntries = prev.filter(entry =>
+          Date.now() - entry.timestamp.getTime() < 2000 
+        );
+
+        const isDuplicate = recentEntries.some(entry =>
+          entry.prediction === newEntry.prediction &&
+          entry.language === newEntry.language &&
+          Math.abs(entry.confidence - newEntry.confidence) < 0.01
+        );
+
+        if (isDuplicate) {
+          console.log('Duplicate entry prevented:', newEntry.prediction);
+          return prev; 
+        }
+
+        return [newEntry, ...prev.slice(0, 49)]; 
+      });
     }
   };
 
@@ -41,17 +59,16 @@ const HistoryProvider = ({ children }) => {
   };
 
   return (
-    <HistoryContext.Provider value={{ 
-      globalHistory, 
-      addToHistory, 
-      clearHistory 
+    <HistoryContext.Provider value={{
+      globalHistory,
+      addToHistory,
+      clearHistory
     }}>
       {children}
     </HistoryContext.Provider>
   );
 };
 
-// Hook to use History Context
 const useHistory = () => {
   const context = useContext(HistoryContext);
   if (!context) {
@@ -60,7 +77,6 @@ const useHistory = () => {
   return context;
 };
 
-// --- Komponen YouTubeEmbed (Perbaikan URL Embed) ---
 const YouTubeEmbed = ({ videoId, title, description }) => {
   return (
     <div className="youtube-card bg-white rounded-lg shadow-md overflow-hidden transform transition-transform duration-300 hover:scale-[1.02] cursor-pointer">
@@ -93,44 +109,53 @@ function HomePage() {
     }
   };
 
-  const headerHeight = '64px';
   return (
     <div className="flex flex-col min-h-screen bg-[#009DFF]">
       <Header />
-
-      <div
-        className="bg-[#009DFF] flex items-center justify-center relative z-0"
-        style={{ minHeight: `calc(100vh - ${headerHeight})` }}
-      >
-        <div className="container mx-auto px-4 py-16 flex flex-col md:flex-row items-center justify-between w-full">
-          <div className="flex-1 max-w-lg text-center md:text-left mb-8 md:mb-0">
-            <h1 className="text-5xl font-bold text-white mb-4">
-              SILENT
-            </h1>
+      <div className="flex-1 flex items-center justify-center relative z-0 pt-24">
+        <div className="container mx-auto px-4 py-16 flex flex-col md:flex-row items-center justify-between w-full landing-container">
+          <div className="flex-1 max-w-lg text-center md:text-left mb-8 md:mb-0 text-container order-1 md:order-1">
+            <h1 className="text-5xl font-bold text-white mb-4">SILENT</h1>
             <p className="text-xl text-blue-100 mb-8">
-              sign language interpretation<br />
-              and expression translator
+              Interpretasi dan Penerjemah<br />
+              Ekspresi Bahasa Isyarat
             </p>
+            <div className="hidden md:flex justify-start">
+              <a
+                href="#youtube-videos"
+                onClick={handleTryMeNowScroll}
+                className="bg-blue-600 hover:bg-blue-900 text-white px-8 py-3 rounded-lg font-medium transition-all duration-200 transform hover:scale-105 flex items-center gap-2"
+              >
+                Pelajari Lebih Lanjut <span className="text-lg">👇</span>
+              </a>
+            </div>
+          </div>
+
+          {/* Gambar */}
+          <div className="flex justify-center image-container order-2 md:order-2">
+            <div className="relative">
+              <img
+                src={landingPage}
+                className="w-70 h-70 object-contain rounded-lg"
+                alt="Landing Page Illustration"
+              />
+            </div>
+          </div>
+
+          {/* Tombol untuk mobile */}
+          <div className="flex justify-center mt-8 md:hidden order-3">
             <a
               href="#youtube-videos"
               onClick={handleTryMeNowScroll}
-              className="bg-blue-600 hover:bg-blue-900 text-white px-8 py-3 rounded-lg font-medium transition-all duration-200 transform hover:scale-105 flex items-center gap-2 w-fit mx-auto md:mx-0"
+              className="bg-blue-600 hover:bg-blue-900 text-white px-8 py-3 rounded-lg font-medium transition-all duration-200 transform hover:scale-105 flex items-center gap-2"
             >
-              Pelajari Lebih Lanjut
-              <span className="text-lg">👇</span>
+              Pelajari Lebih Lanjut <span className="text-lg">👇</span>
             </a>
-          </div>
-          <div className="flex justify-center">
-            <div className="relative">
-              {/* <div className="w-80 h-80 bg-blue-600 rounded-full flex items-center justify-center"> */}
-              <img src={landingPage} className="w-70 h-70 object-contain rounded-lg" alt="Landing Page Illustration" />
-              {/* </div> */}
-            </div>
           </div>
         </div>
       </div>
 
-      {/* Bagian YouTube Videos */}
+      {/* Section YouTube */}
       <section id="youtube-videos" className="bg-gray-100 py-12">
         <div className="container mx-auto px-4">
           <h2 className="text-3xl font-bold text-center text-gray-800 mb-8">Pelajari Bahasa Isyarat</h2>
@@ -151,10 +176,9 @@ function HomePage() {
               Amerika (ASL)."
             />
           </div>
-          {/* Gambar perbandingan SIBI & BISINDO */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mt-12">
 
-            {/* Gambar BISINDO */}
+          {/* Gambar perbandingan */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mt-12">
             <div className="bg-white rounded-lg shadow-md p-4">
               <img
                 src={bisindoImage}
@@ -163,11 +187,10 @@ function HomePage() {
               />
               <h3 className="text-lg font-semibold text-gray-800 text-center mt-4 mb-2">Bahasa Isyarat Indonesia (BISINDO)</h3>
               <p className="text-s text-gray-600 text-center">
-               Bahasa isyarat alami komunitas tunarungu.
+                Bahasa isyarat alami komunitas tunarungu.
               </p>
             </div>
 
-            {/* Gambar SIBI */}
             <div className="bg-white rounded-lg shadow-md p-4">
               <img
                 src={sibiImage}
@@ -178,15 +201,16 @@ function HomePage() {
                 Sistem Isyarat Bahasa Indonesia (SIBI)
               </h3>
               <p className="text-sm text-gray-600 text-center">
-               Sistem isyarat formal berdasarkan tata bahasa Indonesia.
+                Sistem isyarat formal berdasarkan tata bahasa Indonesia.
               </p>
             </div>
-
           </div>
+
+          {/* CTA */}
           <div className="text-center mt-12">
             <Link
               to="/translate"
-              className="bg-blue-600 hover:bg-blue-700 text-white px-10 py-4 rounded-lg font-bold text-lg transition-all duration-200 transform hover:scale-105 inline-flex items-center gap-3"
+              className="bg-blue-600 hover:bg-blue-900 text-white px-10 py-4 rounded-lg font-bold text-lg transition-all duration-200 transform hover:scale-105 inline-flex items-center gap-3"
             >
               Mulai Terjemahkan Sekarang
               <img src={klik} className="w-8 h-8 object-contain rounded-lg p-1" />
@@ -194,7 +218,6 @@ function HomePage() {
           </div>
         </div>
       </section>
-
 
       <Footer />
     </div>
@@ -206,35 +229,40 @@ function TranslatePage() {
   const [currentMode, setCurrentMode] = useState(null);
   const [predictionResult, setPredictionResult] = useState(null);
   const [localHistory, setLocalHistory] = useState([]);
-  
-  // Use global history context
+
   const { addToHistory } = useHistory();
 
-  const handlePrediction = (result, capturedImageUrl = null) => {
+  const handlePrediction = (result, capturedImageUrl = null, source = 'unknown') => {
     setPredictionResult(result);
-    
+
     if (result && result.success) {
-      // Add to global history
-      addToHistory(result, capturedImageUrl, selectedLanguage);
-      
-      // Keep local history for sidebar display (last 10 items)
+      addToHistory(result, capturedImageUrl, selectedLanguage, source);
+
       const newEntry = {
-        id: Date.now(),
+        id: Date.now() + Math.random(),
         prediction: result.prediction,
         confidence: result.confidence,
         timestamp: new Date(),
         imageUrl: capturedImageUrl,
-        language: result.dataset || selectedLanguage.toUpperCase()
+        language: result.dataset || selectedLanguage.toUpperCase(),
+        source: source
       };
       setLocalHistory(prev => [newEntry, ...prev.slice(0, 9)]);
     }
   };
 
+  const handleCameraPrediction = (result, capturedImageUrl = null) => {
+    handlePrediction(result, capturedImageUrl, 'camera');
+  };
+
+  const handleUploadPrediction = (result, capturedImageUrl = null) => {
+    handlePrediction(result, capturedImageUrl, 'upload');
+  };
+
   return (
     <div className="min-h-screen bg-gray-50">
       <Header />
-
-      <main className="container mx-auto px-4 py-8">
+      <main className="page-content container mx-auto px-4 pb-8">
         <div className="mb-8">
           <LanguageSelector
             selectedLanguage={selectedLanguage}
@@ -249,7 +277,7 @@ function TranslatePage() {
             melalui berbagai metode di bawah.
           </p>
 
-          <div className="grid md:grid-cols-2 gap-6 max-w-2xl mx-auto">
+          <div className="grid grid-cols-2 gap-4 sm:gap-6 max-w-2xl mx-auto">
             <div
               className={`card-hover ${currentMode === 'camera' ? 'active' : ''}`}
               onClick={() => setCurrentMode('camera')}
@@ -314,9 +342,9 @@ function TranslatePage() {
 
         <div className="grid lg:grid-cols-3 gap-8">
           <div className="lg:col-span-2">
-            <div className="card">
+            <div className="card"> 
               <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
-                <span>Translation</span>
+                <span>Terjemahan</span>
                 {currentMode && (
                   <span className="bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded-full">
                     {currentMode === 'camera' ? '📷 Camera Mode' : '🖼️ Upload Mode'}
@@ -334,20 +362,23 @@ function TranslatePage() {
                 </div>
               )}
 
+              {/* PERBAIKAN UTAMA: Kondisi yang benar untuk render komponen */}
               {currentMode === 'camera' && (
                 <div className="fade-in">
                   <CameraCapture
                     language={selectedLanguage}
-                    onPrediction={(result, imageUrl) => handlePrediction(result, imageUrl)}
+                    onPrediction={handleCameraPrediction}
                   />
                 </div>
               )}
 
               {currentMode === 'upload' && (
-                <ImageUpload
-                  language={selectedLanguage}
-                  onPrediction={(result, imageUrl) => handlePrediction(result, imageUrl)}
-                />
+                <div className="fade-in">
+                  <ImageUpload
+                    language={selectedLanguage}
+                    onPrediction={handleUploadPrediction}
+                  />
+                </div>
               )}
 
               {predictionResult && (
@@ -361,12 +392,12 @@ function TranslatePage() {
           <div className="lg:col-span-1">
             <div className="card">
               <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-semibold">Recent History</h3>
-                <Link 
-                  to="/history" 
+                <h3 className="text-lg font-semibold">Riwayat Terbaru</h3>
+                <Link
+                  to="/history"
                   className="text-blue-600 hover:text-blue-800 text-sm font-medium"
                 >
-                  View All →
+                  Lihat Semua →
                 </Link>
               </div>
 
@@ -396,9 +427,14 @@ function TranslatePage() {
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center justify-between">
                           <div className="font-semibold text-gray-800">Terjemahan</div>
-                          <span className="text-xs text-gray-500 bg-gray-200 px-2 py-1 rounded">
-                            {item.language}
-                          </span>
+                          <div className="flex items-center gap-1">
+                            <span className="text-xs text-gray-500 bg-gray-200 px-2 py-1 rounded">
+                              {item.language}
+                            </span>
+                            <span className="text-xs text-blue-500 bg-blue-100 px-2 py-1 rounded">
+                              {item.source}
+                            </span>
+                          </div>
                         </div>
                         <div className="text-2xl font-bold text-blue-600">{item.prediction}</div>
                         <div className="flex items-center justify-between mt-1">
@@ -425,79 +461,71 @@ function TranslatePage() {
   );
 }
 
-// About Page Component (Tidak ada perubahan)
+// About Page Component
 function AboutPage() {
   return (
     <div className="min-h-screen bg-gray-50">
       <Header />
-      <main className="container mx-auto px-4 py-16">
+      <main className="page-content container mx-auto px-4 pb-8">
         <div className="max-w-4xl mx-auto">
-          <h1 className="text-4xl font-bold text-center mb-8">About SILENT</h1>
+          <h1 className="text-3xl sm:text-4xl font-bold text-center mb-10">
+            Tentang SILENT
+          </h1>
 
-          <div className="grid md:grid-cols-2 gap-8">
-            <div className="card">
-              <h2 className="text-2xl font-semibold mb-4">Our Mission</h2>
-              <p className="text-gray-600 mb-4">
+          {/* Misi dan fitur */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-12">
+            <div className="bg-white rounded-lg shadow-sm p-6">
+              <h2 className="text-2xl font-semibold mb-4 text-gray-800">Misi</h2>
+              <p className="text-gray-600 mb-4 text-sm leading-relaxed">
                 SILENT adalah aplikasi web inovatif yang dirancang untuk menerjemahkan bahasa isyarat Indonesia (BISINDO dan SIBI) menjadi teks menggunakan teknologi computer vision dan machine learning.
               </p>
-              <p className="text-gray-600">
+              <p className="text-gray-600 text-sm leading-relaxed">
                 Kami bertujuan untuk membantu komunikasi antara komunitas tuna rungu dan masyarakat umum melalui teknologi yang mudah diakses.
               </p>
             </div>
 
-            <div className="card">
-              <h2 className="text-2xl font-semibold mb-4">Features</h2>
-              <ul className="space-y-8 text-gray-600">
+            <div className="bg-white rounded-lg shadow-sm p-6">
+              <h2 className="text-2xl font-semibold mb-4 text-gray-800">Fitur</h2>
+              <ul className="space-y-4 text-gray-600 text-sm">
                 <li className="flex items-center gap-2">
-                  <span className="text-green-500">✓</span>
-                  Real-time Translation
+                  <span className="text-green-500">✓</span> Terjemahan Real-time
                 </li>
                 <li className="flex items-center gap-2">
-                  <span className="text-green-500">✓</span>
-                  Image Upload Support
+                  <span className="text-green-500">✓</span> Dukungan Unggah Gambar
                 </li>
                 <li className="flex items-center gap-2">
-                  <span className="text-green-500">✓</span>
-                  BISINDO & SIBI Support
+                  <span className="text-green-500">✓</span> BISINDO & SIBI
                 </li>
                 <li className="flex items-center gap-2">
-                  <span className="text-green-500">✓</span>
-                  Translation History
+                  <span className="text-green-500">✓</span> Riwayat Terjemahan
                 </li>
               </ul>
             </div>
           </div>
 
-          <div className="card mt-8">
-            <h2 className="text-2xl font-semibold mb-4">Development Team</h2>
-            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
-              <div className="text-center">
-                <h3 className="font-semibold">Hanna Tashya Portuna</h3>
-                <p className="text-gray-600">ML Engineer</p>
-                <p className="text-sm text-gray-500">MC185D5X0288</p>
-              </div>
-              <div className="text-center">
-                <h3 className="font-semibold">Evan Austin</h3>
-                <p className="text-gray-600">ML Engineer</p>
-                <p className="text-sm text-gray-500">MC185D5Y0640</p>
-              </div>
-              <div className="text-center">
-                <h3 className="font-semibold">Mark Dionisius Alvin M G</h3>
-                <p className="text-gray-600">ML Engineer</p>
-                <p className="text-sm text-gray-500">MC185D5Y1221</p>
-              </div>
-              <div className="text-center">
-                <h3 className="font-semibold">Femilia Zahrotun Nisa</h3>
-                <p className="text-gray-600">Frontend Developer</p>
-                <p className="text-sm text-gray-500">FC525D5X0011</p>
-              </div>
-              <div className="text-center">
-                <h3 className="font-semibold">Icha Prisylia Br Ginting</h3>
-                <p className="text-gray-600">Backend Developer</p>
-                <p className="text-sm text-gray-500">FC525D5X0148</p>
-              </div>
+          {/* Tim pengembang */}
+          <div className="bg-white rounded-lg shadow-sm p-6">
+            <h2 className="text-2xl font-semibold mb-6 text-gray-800 text-center">Tim</h2>
+            <div className="flex flex-wrap justify-center gap-6">
+              {[
+                { name: 'Hanna Tashya Portuna', role: 'ML Engineer' },
+                { name: 'Evan Austin', role: 'ML Engineer'},
+                { name: 'Mark Dionisius Alvin M G', role: 'ML Engineer' },
+                { name: 'Femilia Zahrotun Nisa', role: 'Frontend Developer'},
+                { name: 'Icha Prisylia Br Ginting', role: 'Backend Developer'}
+              ].map((member, index) => (
+                <div
+                  key={index}
+                  className="w-64 h-36 bg-gray-50 border rounded-lg shadow-sm flex flex-col justify-center items-center text-center p-4"
+                >
+                  <h3 className="font-semibold text-gray-800">{member.name}</h3>
+                  <p className="text-gray-600 text-sm">{member.role}</p>
+                  <p className="text-xs text-gray-500">{member.id}</p>
+                </div>
+              ))}
             </div>
           </div>
+
         </div>
       </main>
       <Footer />
@@ -512,33 +540,32 @@ function HistoryPage() {
   return (
     <div className="min-h-screen bg-gray-50">
       <Header />
-      <main className="container mx-auto px-4 py-16">
+      <main className="page-content container mx-auto px-4 pb-8">
         <div className="max-w-4xl mx-auto">
           <div className="flex items-center justify-between mb-8">
-            <h1 className="text-4xl font-bold">Translation History</h1>
+            <h1 className="text-3xl font-bold">Riwayat Terjemahan</h1>
             {globalHistory.length > 0 && (
               <button
                 onClick={clearHistory}
                 className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
               >
-                Clear All History
+                Hapus Semua Riwayat
               </button>
             )}
           </div>
-
           <div className="card">
             {globalHistory.length === 0 ? (
               <div className="text-center py-16">
                 <div className="text-6xl mb-4">📝</div>
-                <h3 className="text-xl font-semibold text-gray-700 mb-2">No History Yet</h3>
+                <h3 className="text-xl font-semibold text-gray-700 mb-2">Belum Ada Riwayat</h3>
                 <p className="text-gray-500 mb-6">
-                  Start translating sign language to see your history here
+                  Mulai menerjemahkan bahasa isyarat untuk melihat riwayat Anda di sini.
                 </p>
                 <Link
                   to="/translate"
                   className="btn-primary inline-flex items-center gap-2"
                 >
-                  Start Translating
+                  Mulai Terjemahkan
                 </Link>
               </div>
             ) : (
@@ -548,7 +575,7 @@ function HistoryPage() {
                     📊 Total Translations: <strong>{globalHistory.length}</strong>
                   </p>
                 </div>
-                
+
                 {globalHistory.map((item, index) => (
                   <div key={item.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
                     <div className="flex items-center gap-4">
@@ -568,6 +595,12 @@ function HistoryPage() {
                           <h3 className="font-semibold text-lg">Letter {item.prediction}</h3>
                           <span className="bg-gray-200 text-gray-700 px-2 py-1 rounded text-xs">
                             #{index + 1}
+                          </span>
+                          <span className={`px-2 py-1 rounded text-xs ${item.source === 'camera' ? 'bg-green-100 text-green-800' :
+                            item.source === 'upload' ? 'bg-blue-100 text-blue-800' :
+                              'bg-gray-100 text-gray-800'
+                            }`}>
+                            {item.source}
                           </span>
                         </div>
                         <div className="flex items-center gap-4 text-sm text-gray-600">

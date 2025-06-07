@@ -42,6 +42,11 @@ body {
   transition: all 0.2s ease-in-out;
 }
 
+.page-content {
+  padding-top: 6rem; /* atau sesuai tinggi header */
+}
+
+
 /* Button hover effects */
 .btn-primary {
   @apply bg-blue-gradient text-white px-6 py-3 rounded-lg font-medium shadow-custom hover:shadow-custom-lg transform hover:-translate-y-0.5;
