@@ -1,5 +1,4 @@
-# src/models/train_model.py - OPTIMIZED VERSION
-# REPLACE the existing train_model.py with this file
+# src/models/train_model.py
 
 import pandas as pd
 import numpy as np
@@ -24,7 +23,7 @@ warnings.filterwarnings('ignore')
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-class OptimizedModelTrainer:
+class FixedModelTrainer:
     def __init__(self):
         self.scaler = StandardScaler()
         self.label_encoder = LabelEncoder()
@@ -61,7 +60,6 @@ class OptimizedModelTrainer:
         logger.info(f"  Samples per class: {analysis['min_samples_per_class']} - {analysis['max_samples_per_class']}")
         logger.info(f"  Class imbalance ratio: {analysis['imbalance_ratio']:.2f}")
         
-        # Check minimum samples requirement
         if analysis['min_samples_per_class'] < 3:
             logger.error(f"Some classes have < 3 samples")
             return False, analysis
@@ -69,36 +67,62 @@ class OptimizedModelTrainer:
         return True, analysis
         
     def prepare_data(self, dataframe):
-        """Prepare data with advanced preprocessing"""
-        logger.info("Preparing data with optimized preprocessing...")
+        """Prepare data with fixed preprocessing"""
+        logger.info("Preparing data with fixed preprocessing...")
         
         is_valid, analysis = self.analyze_dataset(dataframe)
         if not is_valid:
             return None, None, None, None, None, None, None
         
         # Separate features and labels
-        feature_cols = [col for col in dataframe.columns if col not in ['label', 'sign_language_type']]
+        feature_cols = [col for col in dataframe.columns if col not in ['label', 'sign_language_type', 'is_mirrored']]
         X = dataframe[feature_cols].copy()
         y = dataframe['label'].copy()
         
         logger.info(f"Original data shape: X={X.shape}, y={y.shape}")
         
         # Data cleaning
-        X = X.fillna(X.median())
-        X = X.replace([np.inf, -np.inf], 0)
+        X = X.fillna(0.0)
+        X = X.replace([np.inf, -np.inf], 0.0)
         
-        # Remove low variance features
+        # Convert to numeric
+        for col in X.columns:
+            X[col] = pd.to_numeric(X[col], errors='coerce').fillna(0.0)
+        
+        # FIXED: More lenient variance threshold
         feature_variance = X.var()
-        low_variance_features = feature_variance[feature_variance < 0.001].index
+        low_variance_threshold = 0.0001  # Very small threshold
+        low_variance_features = feature_variance[feature_variance < low_variance_threshold].index
+        
         if len(low_variance_features) > 0:
+            logger.info(f"Removing {len(low_variance_features)} low-variance features (threshold: {low_variance_threshold})")
             X = X.drop(columns=low_variance_features)
-            logger.info(f"Removed {len(low_variance_features)} low-variance features")
         
-        # Check feature count
+        # If too few features, use all available
         if X.shape[1] < 5:
-            logger.error(f"Too few features remaining: {X.shape[1]}")
-            return None, None, None, None, None, None, None
+            logger.warning(f"Very few features remaining: {X.shape[1]}. Using all available features.")
+            # Restore all features and just remove completely constant ones
+            X = dataframe[feature_cols].copy()
+            X = X.fillna(0.0)
+            X = X.replace([np.inf, -np.inf], 0.0)
+            
+            # Convert to numeric
+            for col in X.columns:
+                X[col] = pd.to_numeric(X[col], errors='coerce').fillna(0.0)
+            
+            # Only remove completely constant features (variance = 0)
+            feature_variance = X.var()
+            constant_features = feature_variance[feature_variance == 0].index
+            
+            if len(constant_features) > 0:
+                logger.info(f"Removing {len(constant_features)} constant features")
+                X = X.drop(columns=constant_features)
+            
+            if X.shape[1] == 0:
+                logger.error("Too few features remaining: 0")
+                return None, None, None, None, None, None, None
         
+        logger.info(f"Features after filtering: {X.shape[1]}")
         self.feature_names = X.columns.tolist()
         
         # Encode labels
@@ -108,7 +132,7 @@ class OptimizedModelTrainer:
         
         logger.info(f"Classes: {list(self.label_encoder.classes_)}")
         
-        # Train/test split with stratification
+        # Train/test split
         test_size = 0.2 if len(X) > 100 else 0.15
         
         try:
@@ -134,21 +158,21 @@ class OptimizedModelTrainer:
         return X_train_scaled, X_test_scaled, y_train, y_test, y_train_cat, y_test_cat, analysis
     
     def build_adaptive_neural_network(self, input_shape, num_classes, dataset_size):
-        """Build neural network adapted to dataset size"""
-        logger.info(f"Building adaptive neural network for {num_classes} classes...")
+        """Build neural network adapted to dataset size and feature count"""
+        logger.info(f"Building neural network for {num_classes} classes, {input_shape} features")
         
-        # Adapt architecture to dataset size
-        if dataset_size < 100:
-            architecture = [64, 32]
-            dropout_rate = 0.2
+        # Adapt architecture to dataset size and feature count
+        if dataset_size < 100 or input_shape < 20:
+            architecture = [max(32, input_shape * 2), max(16, input_shape)]
+            dropout_rate = 0.1
             l2_reg = 0.01
-        elif dataset_size < 300:
-            architecture = [128, 64, 32]
-            dropout_rate = 0.3
+        elif dataset_size < 500 or input_shape < 50:
+            architecture = [max(64, input_shape * 2), max(32, input_shape), 16]
+            dropout_rate = 0.2
             l2_reg = 0.001
         else:
-            architecture = [256, 128, 64, 32]
-            dropout_rate = 0.4
+            architecture = [min(256, input_shape * 4), min(128, input_shape * 2), max(32, input_shape)]
+            dropout_rate = 0.3
             l2_reg = 0.0001
         
         model = Sequential()
@@ -199,19 +223,19 @@ class OptimizedModelTrainer:
             input_shape, num_classes, dataset_size
         )
         
-        # Training parameters based on dataset size
+        # Training parameters
         if dataset_size < 100:
-            epochs = 150
+            epochs = 200
             batch_size = min(16, dataset_size // 4)
-            patience = 25
-        elif dataset_size < 300:
-            epochs = 100
+            patience = 30
+        elif dataset_size < 500:
+            epochs = 150
             batch_size = 32
-            patience = 20
+            patience = 25
         else:
-            epochs = 80
+            epochs = 100
             batch_size = 64
-            patience = 15
+            patience = 20
         
         # Callbacks
         callbacks = [
@@ -265,7 +289,6 @@ class OptimizedModelTrainer:
         
         tf_f1 = f1_score(y_test_labels, y_pred_tf, average='macro')
         
-        # Check prediction diversity
         unique_predictions = len(np.unique(y_pred_tf))
         
         logger.info(f"TensorFlow Results:")
@@ -298,17 +321,17 @@ class OptimizedModelTrainer:
         # Adaptive parameters
         if dataset_size < 100:
             n_estimators = 100
-            max_depth = min(10, num_features // 2)
+            max_depth = min(10, max(3, num_features // 2))
             min_samples_split = 2
             min_samples_leaf = 1
-        elif dataset_size < 300:
+        elif dataset_size < 500:
             n_estimators = 150
-            max_depth = min(15, num_features // 2)
+            max_depth = min(15, max(5, num_features // 2))
             min_samples_split = 3
             min_samples_leaf = 2
         else:
             n_estimators = 200
-            max_depth = min(20, num_features // 2)
+            max_depth = min(20, max(8, num_features // 2))
             min_samples_split = 5
             min_samples_leaf = 2
         
@@ -410,20 +433,16 @@ class OptimizedModelTrainer:
         return best_model, best_performance
 
 def train_model(dataframe, model_save_base_name, language_type):
-    """
-    Main training function with optimized dual model approach
-    """
-    logger.info(f"Starting optimized training for {language_type.upper()}")
+    """Main training function"""
+    logger.info(f"Starting training for {language_type}")
     
     if dataframe.empty:
-        logger.error(f"Input DataFrame for {language_type.upper()} is empty")
+        logger.error(f"Input DataFrame for {language_type} is empty")
         return None, None
     
     try:
-        # Initialize trainer
-        trainer = OptimizedModelTrainer()
+        trainer = FixedModelTrainer()
         
-        # Prepare data
         result = trainer.prepare_data(dataframe)
         if result[0] is None:
             logger.error("Data preparation failed")
@@ -469,7 +488,7 @@ def train_model(dataframe, model_save_base_name, language_type):
                 'f1_macro': tf_results['f1_score'],
                 'loss': tf_results['loss'],
                 'language_type': language_type.upper(),
-                'model_type': 'OPTIMIZED_TENSORFLOW',
+                'model_type': 'FIXED_TENSORFLOW',
                 'dataset_analysis': analysis
             }
             
@@ -488,7 +507,7 @@ def train_model(dataframe, model_save_base_name, language_type):
                 'accuracy': sklearn_results['accuracy'],
                 'f1_macro': sklearn_results['f1_score'],
                 'language_type': language_type.upper(),
-                'model_type': 'OPTIMIZED_RANDOM_FOREST',
+                'model_type': 'FIXED_RANDOM_FOREST',
                 'dataset_analysis': analysis,
                 'feature_importance': sklearn_results['feature_importance'].to_dict()
             }
@@ -513,7 +532,7 @@ def train_model(dataframe, model_save_base_name, language_type):
         
         models_saved.append(f"Best ({best_model}): {combined_path}")
         
-        logger.info(f"Training completed for {language_type.upper()}:")
+        logger.info(f"Training completed for {language_type}:")
         for model_info in models_saved:
             logger.info(f"  Saved: {model_info}")
         
@@ -526,7 +545,7 @@ def train_model(dataframe, model_save_base_name, language_type):
         return X_test, y_test
         
     except Exception as e:
-        logger.error(f"Error during training for {language_type.upper()}: {e}")
+        logger.error(f"Error during training for {language_type}: {e}")
         import traceback
         traceback.print_exc()
         return None, None
