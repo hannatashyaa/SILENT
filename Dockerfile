@@ -2,9 +2,7 @@
 FROM python:3.12-slim-buster
 
 # Instal dependensi sistem yang umum dibutuhkan oleh pustaka ML (seperti OpenCV, TensorFlow)
-# Termasuk build-essential untuk compiler dan library-library lain.
-# Perintah ini mungkin perlu disesuaikan tergantung distro Linux dasar (misal Alpine vs Debian/Ubuntu)
-# python:3.12-slim-buster menggunakan Debian/Ubuntu base.
+# Ini harus selalu dilakukan di awal, sebelum instalasi paket Python yang memerlukan build tools.
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     pkg-config \
@@ -21,6 +19,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libatlas-base-dev \
     gfortran \
     python3-dev \
+    # Tambahan penting untuk memastikan kompatibilitas setuptools yang lebih baik
+    git \
+    # Clean up apt cache
     && rm -rf /var/lib/apt/lists/*
 
 # Atur direktori kerja di dalam kontainer
@@ -29,17 +30,24 @@ WORKDIR /app
 # Atur variabel lingkungan PATH
 ENV NIXPACKS_PATH=/opt/venv/bin:$NIXPACKS_PATH
 
-# Salin file requirements.txt terlebih dahulu untuk memanfaatkan Docker cache layer
+# Buat virtual environment terlebih dahulu
+RUN python -m venv --copies /opt/venv
+
+# AKTIFKAN VIRTUAL ENVIRONMENT DAN LAKUKAN UPGRADE AWAL SETELAH ITU
+# Ini adalah langkah KRUSIAL untuk masalah distutils di 3.12.
+# Pastikan pip, setuptools, dan wheel benar-benar mutakhir di dalam venv sebelum apapun.
+RUN . /opt/venv/bin/activate && \
+    pip install --upgrade pip setuptools wheel
+
+# Salin file requirements.txt setelah venv dan pip/setuptools diupgrade
 COPY requirements.txt .
 
-# Buat virtual environment, aktifkan, dan install semua dependensi Python
-# Tetap sertakan pip install --upgrade pip setuptools wheel sebagai safeguard
-RUN python -m venv --copies /opt/venv && \
-    . /opt/venv/bin/activate && \
-    pip install --upgrade pip setuptools wheel && \
+# Sekarang, install dependensi dari requirements.txt.
+# Karena pip/setuptools sudah up-to-date, seharusnya mereka bisa menangani distutils.
+RUN . /opt/venv/bin/activate && \
     pip install -r requirements.txt
 
-# Salin sisa kode aplikasi setelah dependensi terinstal
+# Salin sisa kode aplikasi setelah semua dependensi terinstal
 COPY . .
 
 # Atur command untuk menjalankan aplikasi Anda (contoh untuk Backend Flask)
