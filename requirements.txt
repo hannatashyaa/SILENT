@@ -3,7 +3,7 @@ numpy==1.21.0
 pandas==1.3.0
 scikit-learn==1.0.1
 tensorflow==2.8.0
-opencv-python-headless==4.5.0.0  # Ganti opencv dengan versi headless
+opencv-python-headless==4.5.0.0 
 mediapipe==0.8.0
 Pillow==8.0.0
 joblib==1.0.0
