@@ -1,5 +1,6 @@
 FROM python:3.12-slim
 
+
 # Instal dependensi sistem yang umum dibutuhkan oleh pustaka ML
 # seperti OpenCV, TensorFlow, dan untuk proses build (compilers, dll.).
 # Perintah ini menggunakan apt-get karena base image adalah Debian/Ubuntu.
@@ -12,7 +13,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libavcodec-dev \
     libavformat-dev \
     libswscale-dev \
-    libtbb2 \
+    # BARIS INI YANG BERUBAH: Ganti libtbb2 dengan libtbbmalloc2
+    libtbbmalloc2 \
     libtbb-dev \
     libv4l-dev \
     libgtk2.0-dev \
@@ -62,9 +64,3 @@ COPY . .
 # Sesuaikan dengan entry point utama aplikasi Backend Flask Anda.
 # Contoh: Jika file Flask Anda bernama app.py dan dijalankan langsung
 CMD ["python", "app.py"]
-
-# --- PENTING ---
-# - Simpan file ini sebagai `Dockerfile` (tanpa ekstensi) di root folder proyek Anda.
-# - Pastikan `requirements.txt` Anda menggunakan versi pustaka yang kompatibel dengan Python 3.12.
-# - Setelah memperbarui `Dockerfile`, commit dan push perubahan ke repositori Anda,
-#   lalu lakukan redeploy di Railway, jika ada opsi, hapus cache build.
