@@ -1,6 +1,7 @@
 FROM python:3.12-slim
 
 
+
 # Instal dependensi sistem yang umum dibutuhkan oleh pustaka ML
 # seperti OpenCV, TensorFlow, dan untuk proses build (compilers, dll.).
 # Perintah ini menggunakan apt-get karena base image adalah Debian/Ubuntu.
@@ -13,7 +14,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libavcodec-dev \
     libavformat-dev \
     libswscale-dev \
-    # BARIS INI YANG BERUBAH: Ganti libtbb2 dengan libtbbmalloc2
     libtbbmalloc2 \
     libtbb-dev \
     libv4l-dev \
@@ -22,6 +22,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     gfortran \
     python3-dev \
     git \
+    cmake \  # <--- TAMBAHKAN BARIS INI!
     # Hapus cache apt setelah instalasi untuk mengurangi ukuran image
     && rm -rf /var/lib/apt/lists/*
 
