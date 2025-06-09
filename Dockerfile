@@ -18,6 +18,7 @@ FROM python:3.12-slim
 # Instal dependensi sistem yang umum dibutuhkan oleh pustaka ML
 # seperti OpenCV, TensorFlow, dan untuk proses build (compilers, dll.).
 # Perintah ini menggunakan apt-get karena base image adalah Debian/Ubuntu.
+# ...
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     pkg-config \
@@ -35,7 +36,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     gfortran \
     python3-dev \
     git \
-    cmake \ # <--- HANYA TAMBAHKAN 'cmake \' DI SINI, HAPUS KOMENTAR DI BARIS YANG SAMA
+    cmake \
     # Hapus cache apt setelah instalasi untuk mengurangi ukuran image
     && rm -rf /var/lib/apt/lists/*
 
