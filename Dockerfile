@@ -1,5 +1,5 @@
-# Gunakan base image Python 3.12 secara eksplisit
-FROM python:3.12-slim-buster
+# Gunakan base image Python 3.12 yang lebih umum
+FROM python:3.12-slim
 
 # Instal dependensi sistem yang umum dibutuhkan oleh pustaka ML
 # Pastikan ini berada di awal.
@@ -24,8 +24,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 # ---- Bagian ini adalah modifikasi utama untuk masalah distutils ----
 # Ini adalah upaya terakhir untuk memastikan setuptools selalu mutakhir.
-# Walaupun kita akan pakai venv, ada kalanya build backend masih memanggil
-# setuptools dari base environment atau temporary environment.
 RUN pip install --no-input --upgrade setuptools pip wheel
 
 # Atur direktori kerja di dalam kontainer
@@ -38,7 +36,6 @@ ENV NIXPACKS_PATH=/opt/venv/bin:$NIXPACKS_PATH
 RUN python -m venv --copies /opt/venv
 
 # AKTIFKAN VIRTUAL ENVIRONMENT DAN LAKUKAN UPGRADE LAGI DI DALAMNYA
-# Ini adalah baris penting yang sudah kita coba sebelumnya, pastikan ada.
 RUN . /opt/venv/bin/activate && \
     pip install --upgrade pip setuptools wheel
 
@@ -46,7 +43,6 @@ RUN . /opt/venv/bin/activate && \
 COPY requirements.txt .
 
 # Sekarang, install dependensi dari requirements.txt.
-# Harapannya, pip/setuptools sudah sangat up-to-date di sini.
 RUN . /opt/venv/bin/activate && \
     pip install -r requirements.txt
 
