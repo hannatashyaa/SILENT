@@ -1,8 +1,16 @@
-# Gunakan base image Python 3.12 yang lebih umum
+# OPSI 1: Coba yang paling umum untuk slim
 FROM python:3.12-slim
 
+# OPSI 2: Jika OPSI 1 gagal, coba ini (menggunakan Debian Bookworm)
+# FROM python:3.12-bookworm
+
+# OPSI 3: Jika OPSI 1 & 2 gagal, coba ini (slim di atas Bookworm)
+# FROM python:3.12-slim-bookworm
+
+# ... sisa Dockerfile Anda tetap sama persis seperti yang terakhir saya berikan
+# (termasuk apt-get install dan dua langkah pip install)
+
 # Instal dependensi sistem yang umum dibutuhkan oleh pustaka ML
-# Pastikan ini berada di awal.
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     pkg-config \
@@ -23,7 +31,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # ---- Bagian ini adalah modifikasi utama untuk masalah distutils ----
-# Ini adalah upaya terakhir untuk memastikan setuptools selalu mutakhir.
 RUN pip install --no-input --upgrade setuptools pip wheel
 
 # Atur direktori kerja di dalam kontainer
