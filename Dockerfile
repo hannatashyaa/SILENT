@@ -1,6 +1,19 @@
+# =========================================================
+# DOCKERFILE UNTUK APLIKASI PYTHON DENGAN DEPENDENSI ML
+# Python 3.12, Debian-based (slim)
+# =========================================================
+
+# --- PILIH HANYA SATU BARIS 'FROM' BERIKUT INI DENGAN MENGHAPUS TANDA '#' ---
+
+# OPSI 1 (Direkomendasikan Pertama): Base image Python 3.12 slim
+# Ini menggunakan distribusi Debian terbaru (Bookworm) secara default untuk 3.12-slim
 FROM python:3.12-slim
 
+# OPSI 2 (Alternatif jika OPSI 1 gagal): Base image Python 3.12 slim di atas Bookworm
+# Ini secara eksplisit menentukan distribusi Debian Bookworm
+# # FROM python:3.12-slim-bookworm
 
+# =========================================================
 
 # Instal dependensi sistem yang umum dibutuhkan oleh pustaka ML
 # seperti OpenCV, TensorFlow, dan untuk proses build (compilers, dll.).
@@ -22,7 +35,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     gfortran \
     python3-dev \
     git \
-    cmake \  # <--- TAMBAHKAN BARIS INI!
+    cmake \ # <--- HANYA TAMBAHKAN 'cmake \' DI SINI, HAPUS KOMENTAR DI BARIS YANG SAMA
     # Hapus cache apt setelah instalasi untuk mengurangi ukuran image
     && rm -rf /var/lib/apt/lists/*
 
