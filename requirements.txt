@@ -13,7 +13,7 @@ onnx>=1.14.0
 onnxruntime>=1.15.0
 tf2onnx>=1.10.0
 # sklearn2onnx==1.19.1 # <-- Coba versi spesifik terbaru
-sklearn2onnx # <-- Atau coba tanpa batasan versi, biarkan pip cari yang paling baru
+# sklearn2onnx # <-- Atau coba tanpa batasan versi, biarkan pip cari yang paling baru
 
 # Image processing
 albumentations>=1.3.0
