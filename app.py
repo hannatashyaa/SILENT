@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/env python3Add commentMore actions
 # app.py - Enhanced for Two-Hand Detection
 
 import os
@@ -24,18 +24,23 @@ if sys.platform.startswith('win'):
     sys.stdout = codecs.getwriter('utf-8')(sys.stdout.detach())
     sys.stderr = codecs.getwriter('utf-8')(sys.stderr.detach())
 
+
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s',
     handlers=[logging.StreamHandler(sys.stdout)]
+
+
 )
 logger = logging.getLogger(__name__)
+
 
 current_file_dir = os.path.dirname(os.path.abspath(__file__))
 project_root = current_file_dir
 
 if project_root not in sys.path:
     sys.path.append(project_root)
+
 
 try:
     from src.data_preprocessing.feature_extractor import extract_features
@@ -45,6 +50,7 @@ except ImportError as e:
     extract_features_available = False
     logger.warning(f"Feature extractor not available: {e}")
 
+
 app = Flask(__name__)
 CORS(app, resources={"*": {"origins": "*"}})
 
@@ -52,7 +58,7 @@ class EnhancedSignLanguageAPI:
     def __init__(self):
         self.models = {}
         self.project_root = project_root
-        
+
         # Enhanced MediaPipe setup for better two-hand detection
         self.mp_hands = mp.solutions.hands
         self.hands = self.mp_hands.Hands(
@@ -61,13 +67,14 @@ class EnhancedSignLanguageAPI:
             min_detection_confidence=0.5,  # Lower threshold for better detection
             min_tracking_confidence=0.4    # Lower threshold for tracking
         )
-        
+
+
         self.load_models()
-        
+
     def load_models(self):
         """Load available models"""
         logger.info("Loading models...")
-        
+
         model_configs = [
             {
                 'name': 'SIBI',
@@ -84,10 +91,17 @@ class EnhancedSignLanguageAPI:
                 'combined_path': os.path.join(self.project_root, 'data', 'models', 'sign_language_model_bisindo.pkl'),
             }
         ]
-        
+
         for config in model_configs:
             model_info = {'available_models': []}
-            
+
+
+
+
+
+
+
+
             # Load sklearn model (prefer this for stability)
             if os.path.exists(config['sklearn_path']):
                 try:
@@ -105,18 +119,35 @@ class EnhancedSignLanguageAPI:
                     import tensorflow as tf
                     tf_model = tf.keras.models.load_model(config['tensorflow_path'])
                     tf_meta = joblib.load(config['tensorflow_meta_path'])
-                    
+
                     if self.validate_tensorflow_model(tf_model, tf_meta, config['name']):
                         model_info['tensorflow_model'] = tf_model
                         model_info['tensorflow_meta'] = tf_meta
                         model_info['available_models'].append('tensorflow')
                         logger.info(f"  {config['name']}: TensorFlow model loaded")
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                 except Exception as e:
                     logger.warning(f"  {config['name']}: TensorFlow load failed - {e}")
             
             if model_info['available_models']:
                 self.models[config['name']] = model_info
-        
+
         logger.info(f"Loaded {len(self.models)} language models: {list(self.models.keys())}")
     
     def validate_sklearn_model(self, model_data, language):
@@ -129,7 +160,7 @@ class EnhancedSignLanguageAPI:
         except Exception as e:
             logger.error(f"{language} sklearn validation failed: {e}")
             return False
-    
+
     def validate_tensorflow_model(self, model, meta, language):
         """Validate TensorFlow model"""
         try:
@@ -186,14 +217,15 @@ class EnhancedSignLanguageAPI:
             
             # Process with MediaPipe
             results = self.hands.process(image_rgb)
-            
+
             if not results.multi_hand_landmarks:
                 logger.debug("No hands detected")
                 return None
-            
+
+
             landmarks_flat = []
             hand_data = []
-            
+
             # Process all detected hands
             for i, (hand_landmarks, handedness) in enumerate(zip(results.multi_hand_landmarks, results.multi_handedness)):
                 hand_label = handedness.classification[0].label
@@ -231,7 +263,7 @@ class EnhancedSignLanguageAPI:
             else:
                 # Single-hand mode: sort by confidence
                 hand_data.sort(key=lambda x: -x['score'])
-            
+
             # Extract landmarks for up to 2 hands
             for hand_idx in range(2):
                 if hand_idx < len(hand_data):
@@ -240,7 +272,7 @@ class EnhancedSignLanguageAPI:
                     hand_confidence = hand_data[hand_idx]['score']
                     
                     logger.debug(f"Processing hand {hand_idx}: {hand_label} (conf: {hand_confidence:.2f})")
-                    
+
                     for landmark in hand_landmarks.landmark:
                         landmarks_flat.extend([
                             float(landmark.x),
@@ -250,57 +282,77 @@ class EnhancedSignLanguageAPI:
                 else:
                     # Pad with zeros for missing hand
                     landmarks_flat.extend([0.0] * 63)
-            
+
             # Ensure exactly 126 values
             if len(landmarks_flat) != 126:
                 landmarks_flat = landmarks_flat[:126]
                 while len(landmarks_flat) < 126:
                     landmarks_flat.append(0.0)
-            
+
             logger.info(f"Extracted landmarks: {len(landmarks_flat)} values for {num_hands} hands")
             return landmarks_flat
-            
+
         except Exception as e:
             logger.error(f"Landmark extraction error: {e}")
             return None
-    
+
     def extract_features_using_pipeline(self, landmarks_data, language):
         """Extract features using the same pipeline as training"""
         try:
+
             if extract_features_available:
+
                 landmark_cols = [f'landmark_{i}_{coord}' for i in range(42) for coord in ['x', 'y', 'z']]
                 df_landmarks = pd.DataFrame([landmarks_data], columns=landmark_cols)
-                
+
+
                 features_df = extract_features(df_landmarks, perform_selection=False)
-                
+
                 if not features_df.empty:
+
                     features_for_prediction = features_df.drop(columns=['label', 'sign_language_type'], errors='ignore')
                     return features_for_prediction
-            
+
+
             return self.create_fallback_features(landmarks_data, language)
-            
+
         except Exception as e:
             logger.warning(f"Feature extraction failed: {e}")
             return self.create_fallback_features(landmarks_data, language)
-    
+
     def create_fallback_features(self, landmarks_data, language):
         """Create fallback features"""
         try:
+
+
+
+
+
+
+
+
             features = {}
-            
+
+
             hand1_data = landmarks_data[:63]
             hand2_data = landmarks_data[63:]
-            
+
             feature_idx = 0
-            
+
+
             for hand_idx, hand_data in enumerate([hand1_data, hand2_data]):
                 if len(hand_data) >= 63:
                     x_coords = hand_data[::3]
                     y_coords = hand_data[1::3]
                     z_coords = hand_data[2::3]
-                    
+
                     hand_exists = not all(x == 0 and y == 0 for x, y in zip(x_coords, y_coords))
-                    
+
+
+
+
+
+
                     if hand_exists:
                         # Basic statistics
                         stats = [
@@ -352,7 +404,7 @@ class EnhancedSignLanguageAPI:
                     inter_wrist_dist = np.sqrt((wrist1_x - wrist2_x)**2 + (wrist1_y - wrist2_y)**2)
                     features[f'feature_{feature_idx}'] = float(inter_wrist_dist) if np.isfinite(inter_wrist_dist) else 0.0
                     feature_idx += 1
-                    
+
                     # Relative positions
                     if feature_idx < 80:
                         features[f'feature_{feature_idx}'] = float(wrist1_x - wrist2_x) if np.isfinite(wrist1_x - wrist2_x) else 0.0
@@ -363,21 +415,41 @@ class EnhancedSignLanguageAPI:
             
             # Pad to minimum features
             while feature_idx < 50:
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                 features[f'feature_{feature_idx}'] = 0.0
                 feature_idx += 1
-            
+
             return pd.DataFrame([features])
-            
+
+
         except Exception as e:
             logger.error(f"Fallback feature creation failed: {e}")
             basic_features = {f'feature_{i}': 0.0 for i in range(50)}
             return pd.DataFrame([basic_features])
-    
+
+
     def predict_with_model(self, features_df, language):
         """Make prediction using available model"""
         try:
             model_info = self.models[language]
-            
+
+
+
+
             # Prefer sklearn model for stability
             if 'sklearn' in model_info['available_models']:
                 return self.predict_sklearn(features_df, model_info['sklearn_model'])
@@ -385,7 +457,7 @@ class EnhancedSignLanguageAPI:
                 return self.predict_tensorflow(features_df, model_info['tensorflow_model'], model_info['tensorflow_meta'])
             else:
                 return None, 0.0
-                
+
         except Exception as e:
             logger.error(f"Prediction failed for {language}: {e}")
             return None, 0.0
@@ -403,29 +475,29 @@ class EnhancedSignLanguageAPI:
                 for feature in missing_features:
                     features_df[feature] = 0.0
                 features_df = features_df[feature_names]
-            
+
             # Apply scaling
             if scaler:
                 features_scaled = scaler.transform(features_df)
             else:
                 features_scaled = features_df.values
-            
+
             # Make prediction
             prediction = model.predict(features_scaled)[0]
-            
+
             # Get confidence
             try:
                 probabilities = model.predict_proba(features_scaled)[0]
                 confidence = np.max(probabilities)
             except:
                 confidence = 0.7
-            
+
             return prediction, confidence
-            
+
         except Exception as e:
             logger.error(f"Sklearn prediction error: {e}")
             return None, 0.0
-    
+
     def predict_tensorflow(self, features_df, model, meta):
         """Predict using TensorFlow model"""
         try:
@@ -468,30 +540,31 @@ class EnhancedSignLanguageAPI:
         try:
             language_type = language_type.upper()
             logger.info(f"Predicting for {language_type} (mirror_mode={mirror_mode})")
-            
+
+
             if language_type not in self.models:
                 available = list(self.models.keys())
                 error_msg = f"Model not available for {language_type}. Available: {available}"
                 logger.error(error_msg)
                 return None, 0.0, error_msg
-            
+
             # Extract landmarks with enhanced two-hand detection
             landmarks = self.extract_landmarks_from_frame(image, mirror_mode=mirror_mode)
             if landmarks is None:
                 logger.warning("No hand landmarks detected")
                 return "No hand detected", 0.0, "No hand landmarks detected"
-            
+
             # Extract features
             features_df = self.extract_features_using_pipeline(landmarks, language_type)
             if features_df.empty:
                 return None, 0.0, "Feature extraction failed"
-            
+
             # Make prediction
             prediction, confidence = self.predict_with_model(features_df, language_type)
-            
+
             if prediction is None:
                 return None, 0.0, "Model prediction failed"
-            
+
             # Check for two-hand detection (especially for BISINDO)
             hand1_exists = not all(landmarks[i] == 0 for i in range(0, 63, 3))
             hand2_exists = not all(landmarks[i] == 0 for i in range(63, 126, 3))
@@ -501,7 +574,7 @@ class EnhancedSignLanguageAPI:
             logger.info(f"SUCCESS{mirror_info}: {prediction} (confidence: {confidence:.3f}, hands: {hands_detected})")
             
             return prediction, confidence, f"Success - {hands_detected} hand(s) detected"
-            
+
         except Exception as e:
             logger.error(f"Prediction error: {e}")
             return None, 0.0, f"Prediction error: {str(e)}"
@@ -530,38 +603,45 @@ def health_check():
 def translate_sign():
     try:
         logger.info("Enhanced translate endpoint called")
-        
+
+
         data = request.get_json()
         if not data or 'image' not in data:
             return jsonify({'success': False, 'error': 'No image data'}), 400
-        
+
+
         if not api.models:
             error_msg = 'No models loaded. Please train models first.'
             logger.error(error_msg)
             return jsonify({'success': False, 'error': error_msg}), 500
-        
+
+
         image_data = data['image']
         language_type = data.get('language_type', 'bisindo').lower()
         mirror_mode = data.get('mirror_mode', None)
-        
+
+
         try:
+
             if ',' in image_data:
                 image_data = image_data.split(',')[1]
-            
+
+
             image_bytes = base64.b64decode(image_data)
             nparr = np.frombuffer(image_bytes, np.uint8)
             image = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
-            
+
             if image is None:
                 raise ValueError("Could not decode image")
-                
+
         except Exception as e:
             logger.error(f"Image processing failed: {e}")
             return jsonify({'success': False, 'error': f'Image processing failed: {e}'}), 400
-        
+
         # Make prediction with enhanced two-hand support
         prediction, confidence, message = api.predict_sign(image, language_type, mirror_mode=mirror_mode)
-        
+
+
         response = {
             'success': prediction is not None,
             'prediction': prediction,
@@ -572,9 +652,9 @@ def translate_sign():
             'message': message,
             'timestamp': datetime.now().isoformat()
         }
-        
+
         return jsonify(response)
-        
+
     except Exception as e:
         logger.error(f"Endpoint error: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
@@ -600,21 +680,25 @@ if __name__ == '__main__':
     print("  ✓ Mirror-aware handedness processing")
     print("  ✓ Improved hand sorting algorithms")
     print("  ✓ Sklearn + TensorFlow model support")
-    
+
     if not api.models:
         print("\nNO MODELS LOADED!")
         print("Run: python main.py")
+
     else:
         print("\nAPI READY FOR TWO-HAND PREDICTIONS!")
         for lang, info in api.models.items():
             available_types = ', '.join(info['available_models'])
             print(f"   {lang}: {available_types}")
-    
+
     print("=" * 50)
     print("Test with: python camera_test.py")
-    
+
+
+
     try:
         app.run(host='0.0.0.0', port=5000, debug=False)
     except Exception as e:
         print(f"Server error: {e}")
+
         app.run(host='127.0.0.1', port=5000, debug=False, use_reloader=False)
